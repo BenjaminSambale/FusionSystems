@@ -23,8 +23,12 @@
 #!   <Cite Key="PS_MAGMA" Where="Proposition 4.10(1)"/>: if $n$ is the largest order of a chosen essential subgroup and $E$ is chosen with
 #!   $|N_S(E)| > n$, or $|N_S(E)| = n$ and $N_S(E)$ is not $\textrm{Aut}_\mathcal{F}(S)$-conjugate to a chosen subgroup, then
 #!   $N_{\textrm{Aut}_\mathcal{F}(E)}(\textrm{Aut}_S(E))$ consists of restrictions of elements of $\textrm{Aut}_\mathcal{F}(S)$.
+#! * The group $N_{\textrm{Aut}(S)}(\textrm{Aut}_\mathcal{F}(S))$ permutes the pairs consisting of a candidate essential subgroup and a candidate
+#!   automizer, and all tests above are invariant under this action. Of the fusion data in one orbit, only the smallest one (with respect
+#!   to a numbering of the pairs) is kept, since the others generate isomorphic fusion systems.
 #! * Each remaining fusion datum is tested with <Ref Prop="IsSaturatedFusionSystem" Label="for IsFusionSystem"/>, and isomorphic copies are removed
-#!   with the method of <Ref Oper="IsomorphismFusionSystems" Label="for IsFusionSystem, IsFusionSystem"/>.
+#!   with the method of <Ref Oper="IsomorphismFusionSystems" Label="for IsFusionSystem, IsFusionSystem"/>. The edges of the fusion graph
+#!   coming from $\textrm{Aut}_\mathcal{F}(S)$ and from each candidate automizer are computed only once.
 #!
 #! By default, no restriction on $O_p(\mathcal{F})$ or $O^p(\mathcal{F})$ is made. Two options restrict the output:
 #! * `CoreFree`: only fusion systems with $O_p(\mathcal{F}) = 1$ are returned. If $S \neq 1$ is abelian, there are none

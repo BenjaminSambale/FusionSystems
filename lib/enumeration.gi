@@ -20,7 +20,7 @@ end);
 # of Out(S) up to conjugacy. If P = O_p(Out(S)), these correspond to the p'-subgroups of Out(S)/P up to conjugacy,
 # since two complements of P in a subgroup of Out(S) are conjugate (Schur-Zassenhaus).
 BindGlobal("FS_AutFSChoices", function(S, nice, InnP, hom)
-    local p, OutP, qhom, Q, cand, reps, C, comp;
+    local p, OutP, qhom, Q, reps, C, comp;
     p := PrimePGroup(S);
     OutP := Image(hom);
     qhom := NaturalHomomorphismByNormalSubgroup(OutP, PCore(OutP, p));
@@ -28,28 +28,24 @@ BindGlobal("FS_AutFSChoices", function(S, nice, InnP, hom)
     if Size(Q) = 1 then
         return [[]];
     fi;
-    if IsSolvableGroup(Q) then
-        # every p'-subgroup is conjugate to a subgroup of a Hall p'-subgroup
-        cand := HallSubgroup(Q, Difference(PrimeDivisors(Size(Q)), [p]));
-        cand := List(ConjugacyClassesSubgroups(cand), Representative);
-        reps := [];
-        for C in cand do
-            if ForAll(reps, D -> Size(D) <> Size(C) or not IsConjugate(Q, C, D)) then
-                Add(reps, C);
-            fi;
-        od;
-    else
-        reps := Filtered(List(ConjugacyClassesSubgroups(Q), Representative), C -> Size(C) mod p <> 0);
-    fi;
+    reps := Filtered(List(ConjugacyClassesSubgroups(Q), Representative), C -> Size(C) mod p <> 0);
     return List(reps, function(C)
+        if Size(C) = 1 then
+            return [];
+        fi;
         C := PreImage(hom, PreImage(qhom, C));
-        comp := ComplementClassesRepresentatives(C, SylowSubgroup(C, p))[1];
+        # the Sylow p-subgroup of C is normal, so the complements are the Hall p'-subgroups
+        if IsSolvableGroup(C) then
+            comp := HallSubgroup(C, Difference(PrimeDivisors(Size(C)), [p]));
+        else
+            comp := ComplementClassesRepresentatives(C, SylowSubgroup(C, p))[1];
+        fi;
         return List(GeneratorsOfGroup(comp), x -> PreImagesRepresentative(nice, x));
     end);
 end);
 
 InstallMethod(OvergroupsWithSylowSubgroup, "Parker-Semeraro, Appendix B", [IsGroup, IsGroup], function(G, T)
-    local p, NGT, SubnormalClosure, AddUpToConjugacy, queue, i, X, M, pair, H0, N, hom, K, H, res;
+    local p, NGT, SubnormalClosure, Invariant, AddUpToConjugacy, queue, i, X, M, pair, H0, N, hom, K, H, res;
     if not IsPGroup(T) or Size(T) = 1 then
         Error("<T> must be a nontrivial p-group");
     fi;
@@ -64,19 +60,31 @@ InstallMethod(OvergroupsWithSylowSubgroup, "Parker-Semeraro, Appendix B", [IsGro
         until Size(X) = Size(Y);
         return X;
     end;
+    # an invariant of Y under conjugation in G
+    Invariant := function(Y)
+        if IsPermGroup(G) then
+            return [Size(Y), Collected(List(OrbitsDomain(Y, MovedPoints(G)), Length))];
+        fi;
+        return Size(Y);
+    end;
+    # list[2] contains the invariants of the groups in list[1]
     AddUpToConjugacy := function(list, Y)
-        if ForAll(list, Z -> Size(Z) <> Size(Y) or RepresentativeAction(NGT, Z, Y) = fail) then
-            Add(list, Y);
+        local inv;
+        inv := Invariant(Y);
+        if ForAll([1..Length(list[1])], i -> list[2][i] <> inv or RepresentativeAction(NGT, list[1][i], Y) = fail) then
+            Add(list[1], Y);
+            Add(list[2], inv);
         fi;
     end;
     # Candidates for O^{p'}(H): if O^{p'}(H) = H0 < X = sn(X, T), then H0 lies in a maximal subgroup of X which is conjugate
     # under N_X(T) to M^(g^-1), where M is a class representative of maximal subgroups and T^g <= M. Then H0 <= sn(M^(g^-1), T).
-    queue := [SubnormalClosure(G)];
+    queue := [[], []];
+    AddUpToConjugacy(queue, SubnormalClosure(G));
     AddUpToConjugacy(queue, T);
     i := 0;
-    while i < Length(queue) do
+    while i < Length(queue[1]) do
         i := i + 1;
-        X := queue[i];
+        X := queue[1][i];
         if Size(X) > Size(T) then
             for M in MaximalSubgroupClassReps(X) do
                 if Size(M) mod Size(T) = 0 then
@@ -87,9 +95,10 @@ InstallMethod(OvergroupsWithSylowSubgroup, "Parker-Semeraro, Appendix B", [IsGro
             od;
         fi;
     od;
+    queue := queue[1];
     Info(InfoFusion, 2, Length(queue), " subnormal closures of T up to N_G(T)-conjugacy");
     # H = H0 N_H(T), where N_H(T) <= N_{N_G(T)}(H0) contains T as a Sylow p-subgroup
-    res := [];
+    res := [[], []];
     for H0 in Filtered(queue, X -> PadicValuation(Size(X), p) = PadicValuation(Size(T), p)) do
         N := Normalizer(NGT, H0);
         hom := NaturalHomomorphismByNormalSubgroup(N, T);
@@ -102,7 +111,7 @@ InstallMethod(OvergroupsWithSylowSubgroup, "Parker-Semeraro, Appendix B", [IsGro
             fi;
         od;
     od;
-    return res;
+    return res[1];
 end);
 
 # [SAM14, Theorem 6.9, Proposition 6.10]: if E is essential in a saturated fusion system and E/Phi(E) has rank r, then
@@ -271,9 +280,17 @@ end);
 # induced by Aut_F(S), as pairs [Y, b] where b states whether N_Y(Out_S(E)) = OutB. If forced is true, only those with
 # b = true are returned: they are the conjugates of Y0^n by N_N(OutB), where Y0 runs through ed.Y0s with
 # N_{Y0}(Out_S(E))^n = OutB for some n in N. Otherwise all N-conjugates of the elements of ed.Y0s are computed once
-# and stored in ed.
+# and stored in ed. Since many choices of Aut_F(S) induce the same subgroup OutB, the results are stored in ed.cache.
 BindGlobal("FS_OutAutomizerCandidates", function(ed, OutB, forced)
-    local res, NB, i, n, Y;
+    local res, NB, i, n, Y, x;
+    if not IsBound(ed.cache) then
+        ed.cache := [];
+    fi;
+    for x in ed.cache do
+        if x[1] = forced and Size(x[2]) = Size(OutB) and x[2] = OutB then
+            return x[3];
+        fi;
+    od;
     res := [];
     if forced then
         NB := Normalizer(ed.N, OutB);
@@ -285,17 +302,18 @@ BindGlobal("FS_OutAutomizerCandidates", function(ed, OutB, forced)
                 fi;
             fi;
         od;
-        return res;
-    fi;
-    if not IsBound(ed.Ys) then
-        ed.Ys := Concatenation(List(ed.Y0s, Y0 -> Orbit(ed.N, Y0, OnPoints)));
-        ed.NYs := List(ed.Ys, Y -> Normalizer(Y, ed.OutSE));
-    fi;
-    for i in [1..Length(ed.Ys)] do
-        if IsSubset(ed.Ys[i], OutB) then
-            Add(res, [ed.Ys[i], Size(ed.NYs[i]) = Size(OutB)]);
+    else
+        if not IsBound(ed.Ys) then
+            ed.Ys := Concatenation(List(ed.Y0s, Y0 -> Orbit(ed.N, Y0, OnPoints)));
+            ed.NYs := List(ed.Ys, Y -> Normalizer(Y, ed.OutSE));
         fi;
-    od;
+        for i in [1..Length(ed.Ys)] do
+            if IsSubset(ed.Ys[i], OutB) then
+                Add(res, [ed.Ys[i], Size(ed.NYs[i]) = Size(OutB)]);
+            fi;
+        od;
+    fi;
+    Add(ed.cache, [forced, OutB, res]);
     return res;
 end);
 
@@ -307,6 +325,28 @@ BindGlobal("FS_OutRestrictions", function(ed, auts)
     gens := GeneratorsOfGroup(E);
     return Group(List(auts, a -> Image(ed.hom, Image(ed.niceE,
                      GroupHomomorphismByImagesNC(E, E, gens, List(gens, x -> Image(a, x)))))), One(ed.OutE));
+end);
+
+# Is the set key (of positive integers) the smallest element of its orbit under the group generated by the permutations gens?
+BindGlobal("FS_IsMinimalInOrbit", function(gens, key)
+    local orb, seen, k, g, img;
+    orb := [key];
+    seen := [key];
+    k := 0;
+    while k < Length(orb) do
+        k := k + 1;
+        for g in gens do
+            img := OnSets(orb[k], g);
+            if img < key then
+                return false;
+            fi;
+            if not img in seen then
+                AddSet(seen, img);
+                Add(orb, img);
+            fi;
+        od;
+    od;
+    return true;
 end);
 
 # the group of automorphisms of beta(E) corresponding to the subgroup Y of Out(E), for the data ed of
@@ -394,37 +434,11 @@ BindGlobal("FS_RankOfRows", function(rows)
     return RankMat(rows);
 end);
 
-# the stabilizer of the subgroup with the given key in the group generated by gens, where maps contains the position
-# maps of the elements of gens (Schreier generators)
-BindGlobal("FS_StabilizerOfKey", function(gens, maps, key, one)
-    local orb, trans, sgens, k, i, img, l, x;
-    orb := [key];
-    trans := [one];
-    sgens := [];
-    k := 0;
-    while k < Length(orb) do
-        k := k + 1;
-        for i in [1..Length(gens)] do
-            img := Set(List(orb[k], x -> maps[i][x]));
-            l := Position(orb, img);
-            if l = fail then
-                Add(orb, img);
-                Add(trans, trans[k] * gens[i]);
-            else
-                x := trans[k] * gens[i] * trans[l]^-1;
-                if x <> one then
-                    AddSet(sgens, x);
-                fi;
-            fi;
-        od;
-    od;
-    return Group(sgens, one);
-end);
-
 InstallMethod(AllSaturatedFusionSystems, "for a p-group", [IsPGroup], function(S)
     local corefree, fullfocal, p, D, m, AutS, nice, AutP, InnP, hom, innS, gensP, mapsP, repkeys, Act, aorb, beta,
           j, i, a, id, queue, edata, orbits, results, AS, ASgens, ASP, mapsAS, asorb, T, found, cand, O, ed, sub, best,
-          E, stab, betaP, b, binv, OutB, idx, c, fhom, dimV, ASvecs, sufvecs, chosen, Search, Process, tested, k, ASPgens, mapsASgens, kmax;
+          E, stab, betaP, b, binv, OutB, idx, c, fhom, dimV, ASvecs, sufvecs, chosen, Search, Process, tested, k, ASPgens, mapsASgens, kmax,
+          trAS, ASedges, npairs, candOf, NASP, NASPgens, pairgens, t, tmap, img, l, o, Y, k2, posHom, PosMap;
     corefree := ValueOption("CoreFree") = true;
     fullfocal := ValueOption("FullFocal") = true;
     p := PrimePGroup(S);
@@ -448,6 +462,10 @@ InstallMethod(AllSaturatedFusionSystems, "for a p-group", [IsPGroup], function(S
     # Aut(S)-orbits on the S-classes of S-centric subgroups; beta[j] in AutP maps the first member of the orbit onto reps[j]
     gensP := SmallGeneratingSet(AutP);
     mapsP := List(gensP, g -> FS_PositionMap(D, PreImagesRepresentative(nice, g), [1..Size(S)]));
+    # the action of Aut(S) on the positions of the elements of S, so that the position map of an element of AutP is
+    # computed in a permutation group instead of evaluating an automorphism on all elements of S
+    posHom := GroupHomomorphismByImagesNC(AutP, SymmetricGroup(Size(S)), gensP, List(mapsP, PermList));
+    PosMap := x -> ListPerm(Image(posHom, x), Size(S));
     aorb := ListWithIdenticalEntries(m, 0);
     beta := [];
     orbits := [];
@@ -499,22 +517,26 @@ InstallMethod(AllSaturatedFusionSystems, "for a p-group", [IsPGroup], function(S
         if fullfocal and p >= 5 and Size(ASP) = Size(InnP) then
             continue;
         fi;
-        mapsASgens := List(ASgens, a -> FS_PositionMap(D, a, [1..Size(S)]));
+        mapsASgens := List(ASPgens, PosMap);
         mapsAS := mapsASgens{[1..Length(AS)]};
-        # Aut_F(S)-orbits on the S-classes of S-centric subgroups
+        ASedges := FS_AutomizerEdgesByMaps(D, S, mapsAS);
+        # Aut_F(S)-orbits on the S-classes of S-centric subgroups; trAS[j] in ASP maps reps[asorb[j]] onto reps[j]
         asorb := ListWithIdenticalEntries(m, 0);
+        trAS := [];
         for j in [1..m] do
             if asorb[j] = 0 then
                 asorb[j] := j;
+                trAS[j] := One(AutP);
                 queue := [j];
                 k := 0;
                 while k < Length(queue) do
                     k := k + 1;
                     i := queue[k];
-                    for a in mapsAS do
-                        id := Act(i, a);
+                    for a in [1..Length(mapsAS)] do
+                        id := Act(i, mapsAS[a]);
                         if asorb[id[1]] = 0 then
                             asorb[id[1]] := j;
+                            trAS[id[1]] := trAS[i] * ASPgens[a] * Image(nice, ConjugatorAutomorphismNC(S, id[2]));
                             Add(queue, id[1]);
                         fi;
                     od;
@@ -542,8 +564,8 @@ InstallMethod(AllSaturatedFusionSystems, "for a p-group", [IsPGroup], function(S
                 fi;
                 b := PreImagesRepresentative(nice, betaP);
                 binv := PreImagesRepresentative(nice, betaP^-1);
-                c := rec(ed := ed, b := b, binv := binv, j := best, size := Size(E), nsize := Size(D.norm[best]),
-                         Ys := List(idx, x -> x[1]), ext := List(idx, x -> x[2]));
+                c := rec(ed := ed, b := b, binv := binv, betaP := betaP, j := best, size := Size(E),
+                         nsize := Size(D.norm[best]), Ys := List(idx, x -> x[1]), ext := List(idx, x -> x[2]));
                 if c.nsize < Size(S) then
                     c.jN := FS_IdentifyCentricSubgroup(S, D, D.norm[best])[1];
                 fi;
@@ -552,6 +574,7 @@ InstallMethod(AllSaturatedFusionSystems, "for a p-group", [IsPGroup], function(S
         od;
         for c in cand do
             c.auts := List(c.Ys, Y -> FS_TransportAutomizer(c.ed, Y, c.b, c.binv));
+            c.edges := [];
             if fullfocal then
                 c.vecs := List(c.auts, X -> FS_FocalVectors(fhom, GeneratorsOfGroup(X)));
             fi;
@@ -582,27 +605,102 @@ InstallMethod(AllSaturatedFusionSystems, "for a p-group", [IsPGroup], function(S
         else
             ASvecs := [];
         fi;
+        # NASP = N_{Aut(S)}(Aut_F(S)) permutes the pairs (candidate i, automizer k), numbered by cand[i].pos[k]: if
+        # beta in NASP maps E = cand[i].E onto an S-centric subgroup in the Aut_F(S)-orbit of cand[l].E, there is
+        # gamma in Aut_F(S) with gamma(beta(E)) = cand[l].E, and cand[i].auts[k] is mapped to the conjugate of
+        # cand[i].Ys[k] by the restriction of b_i beta gamma b_l^-1 to ed.E, where b_i = cand[i].betaP. This does not
+        # depend on gamma since N_{Aut_F(S)}(cand[l].E) induces a subgroup of each candidate. All tests are invariant
+        # under NASP, so only fusion data whose set of pairs is minimal in its orbit are tested.
+        npairs := 0;
+        candOf := [];
+        for i in [1..Length(cand)] do
+            cand[i].pos := [npairs + 1..npairs + Length(cand[i].auts)];
+            npairs := npairs + Length(cand[i].auts);
+            candOf[asorb[cand[i].j]] := i;
+        od;
+        NASP := fail;
+        NASPgens := [];
+        if npairs > 0 then
+            NASP := Normalizer(AutP, ASP);
+            NASPgens := SmallGeneratingSet(NASP);
+        fi;
+        pairgens := [];
+        for t in NASPgens do
+            if t in ASP then
+                continue;
+            fi;
+            tmap := PosMap(t);
+            img := [];
+            for i in [1..Length(cand)] do
+                c := cand[i];
+                id := Act(c.j, tmap);
+                if not IsBound(candOf[asorb[id[1]]]) then
+                    break;
+                fi;
+                l := candOf[asorb[id[1]]];
+                a := c.betaP * t * Image(nice, ConjugatorAutomorphismNC(S, id[2])) * trAS[id[1]]^-1 * trAS[cand[l].j] *
+                     cand[l].betaP^-1;
+                o := GeneratorsOfGroup(FS_OutRestrictions(c.ed, [PreImagesRepresentative(nice, a)]))[1];
+                for k in [1..Length(c.Ys)] do
+                    Y := c.Ys[k]^o;
+                    k2 := PositionProperty(cand[l].Ys, Z -> Size(Z) = Size(Y) and Z = Y);
+                    if k2 = fail then
+                        break;
+                    fi;
+                    img[c.pos[k]] := cand[l].pos[k2];
+                od;
+                if k2 = fail then
+                    break;
+                fi;
+            od;
+            if Length(img) = npairs and IsDenseList(img) and IsPerm(PermList(img)) then
+                Add(pairgens, PermList(img));
+            else
+                Info(InfoFusion, 2, "an element of N_Aut(S)(Aut_F(S)) does not permute the candidates");
+                pairgens := fail;
+                break;
+            fi;
+        od;
+        if pairgens = fail then
+            pairgens := [];
+        fi;
+        pairgens := Filtered(pairgens, g -> g <> ());
         # N_{Aut(S)}(Aut_F(S)) modulo Aut_F(S), for the isomorphism test
         T := fail;
         found := [];
         tested := 0;
         Process := function(chosen)
-            local auts, F, new;
+            local auts, F, new, same;
+            if pairgens <> [] and not FS_IsMinimalInOrbit(pairgens, List(chosen, x -> cand[x[1]].pos[x[2]])) then
+                return;
+            fi;
             auts := List(chosen, x -> cand[x[1]].auts[x[2]]);
             if corefree and Size(FS_InvariantCore(S, AS, auts)) > 1 then
                 return;
             fi;
             tested := tested + 1;
-            F := FusionSystemByAutomizers(S, AS, auts);
-            if IsSaturatedFusionSystem(F) and (not corefree or Size(PCoreOfFusionSystem(F)) = 1) then
-                new := [NumberOfCharactersOfFusionSystem(F),
-                        SortedList(List(CentricSubgroupClassRepresentatives(F),
-                                        Q -> [Size(Q), Size(FS_AutomizerPerm(F, Q))]))];
-                if ForAny(found, x -> x[1] = new) and T = fail then
-                    T := List(RightTransversal(Normalizer(AutP, ASP), ASP), t -> PreImagesRepresentative(nice, t));
+            F := FS_FusionSystemByAutomizersNC(S, AS, List(auts, X -> [AutomorphismDomain(X), GeneratorsOfGroup(X)]));
+            F!.edgeParts := Concatenation([ASedges], List(chosen, function(x)
+                local c;
+                c := cand[x[1]];
+                if not IsBound(c.edges[x[2]]) then
+                    c.edges[x[2]] := FS_AutomizerEdges(D, AutomorphismDomain(c.auts[x[2]]),
+                                                       GeneratorsOfGroup(c.auts[x[2]]));
                 fi;
-                if ForAll(found, x -> x[1] <> new or
-                          ForAll(T, t -> not FS_IsImageFusionSystem(x[2], F, t))) then
+                return c.edges[x[2]];
+            end));
+            if IsSaturatedFusionSystem(F) and (not corefree or Size(PCoreOfFusionSystem(F)) = 1) then
+                # invariants for the isomorphism test; k(F, 0) is only computed if the cheaper one agrees
+                new := SortedList(List(CentricSubgroupClassRepresentatives(F), Q -> [Size(Q), Size(FS_AutomizerPerm(F, Q))]));
+                same := Filtered(found, x -> x[1] = new and
+                                 NumberOfCharactersOfFusionSystem(x[2]) = NumberOfCharactersOfFusionSystem(F));
+                if same <> [] and T = fail then
+                    if NASP = fail then
+                        NASP := Normalizer(AutP, ASP);
+                    fi;
+                    T := List(RightTransversal(NASP, ASP), t -> PreImagesRepresentative(nice, t));
+                fi;
+                if ForAll(same, x -> ForAll(T, t -> not FS_IsImageFusionSystem(x[2], F, t))) then
                     Add(found, [new, F]);
                 fi;
             fi;

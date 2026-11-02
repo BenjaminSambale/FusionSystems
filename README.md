@@ -12,7 +12,7 @@ gap> Length(AllSaturatedFusionSystems(S : CoreFree, FullFocal));
 4
 ```
 
-All tests used to discard candidates before the saturation test hold for arbitrary saturated fusion systems and are independent of the classification of finite simple groups; the manual lists them with their sources.
+All tests used to discard candidates before the saturation test hold for arbitrary saturated fusion systems. For odd p, the test on the structure of Out_S(E) for a potentially essential subgroup E depends on the classification of finite simple groups; all other tests are independent of it. The manual lists them with their sources.
 
 The first version of the package aims to add further functionalities, including (but not limited to):
 * constructing fusion systems in GAP;
