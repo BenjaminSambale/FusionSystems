@@ -128,7 +128,7 @@ end );
 
 InstallMethod(AbelianTest, "RED abelian test",
     [IsPGroup], function(S)
-    local p, C0, AutA, N, AutSA;
+    local p, C0;
 
     if IsAbelian(S) then return false; fi;
     
@@ -141,20 +141,7 @@ InstallMethod(AbelianTest, "RED abelian test",
     C0 := List(C0, x -> x.centralizer);
     C0 := Filtered(C0, A -> IsAbelian(A) and Index(Normalizer(S,A), A) = 2);
 
-    if ForAny(C0, IsElementaryAbelian) then 
-        return false;
-    fi;
-
-    C0 := Filtered(C0, A -> not IsElementaryAbelian(A));
-
-    AutA := List(C0, AutomorphismGroup);
-    N := List(AutA, NiceMonomorphism);
-    AutA := List([1..Length(C0)], i -> Image(N[i], AutA[i]));
-
-    AutSA := List(C0, A -> Automizer(S,A));
-    AutSA := List([1..Length(C0)], i -> Image(N[i], AutSA[i]));
-
-    return ForAll([1..Length(C0)], i -> IsSubset(PCore(AutA[i], p), AutSA[i]));
+    return ForAll(C0, A -> not IsElementaryAbelian(A));
 end );
 
 InstallMethod(DerivedCyclicTest, "RED derived cyclic test",
@@ -194,8 +181,7 @@ InstallMethod(ValidAutTest, "RED valid aut test",
     return CommutatorSubgroup(H, S) = S;
 end );
 
-InstallMethod(OmegaAbelianizationTest, "RED omega abelianization test",
-    [IsPGroup], function(S)
+BindGlobal("FS_OmegaAbelianizationTest1", function(S)
     local p, AutS, O, D;
 
     if IsAbelian(S) then return false; fi;
@@ -208,13 +194,32 @@ InstallMethod(OmegaAbelianizationTest, "RED omega abelianization test",
     O := Omega(Center(S), p);
     D := DerivedSubgroup(S);
 
-    if p = 2 and Index(O, Intersection(O, D)) = 2 then 
-        return false;
+    return Index(O, Intersection(O, D)) <> 2;
+end );
+
+BindGlobal("FS_OmegaAbelianizationTest2", function(S)
+    local p, AutS, O, D;
+
+    if IsAbelian(S) then return false; fi;
+    p := PrimePGroup(S);
+
+    if p <> 2 then 
+        return true; 
     fi;
+
+    O := Omega(Center(S), p);
+    D := DerivedSubgroup(S);
 
     AutS := AutomorphismGroup(S);
 
     return not IsPGroup(AutS) or IsSubset(D, O);
+end );
+
+InstallMethod(OmegaAbelianizationTest, "RED omega abelianization test",
+    [IsPGroup], function(S)
+    local p, AutS, O, D;
+
+    return FS_OmegaAbelianizationTest1(S) or FS_OmegaAbelianizationTest2(S);
 end );
 
 InstallMethod(C0Test, "RED C0 test",
@@ -240,29 +245,48 @@ InstallMethod(CTest, "RED C test",
     elif Length(C) > 1 then
         return true;
     fi;
+    # TODO: If p=2 and there is an abelian sub in C, then S must be DSW
 
     AutS := AutomorphismGroup(S);
     return not IsPGroup(AutS);
 end );
 
-BindGlobal("FS_PossiblySupportsReducedFusionSystems_PrePE", function(S)
-    # Dihedral, semidihedral and wreathed groups (p=2) support reduced fs.
-    if IsAbelian(S) then return false; fi;
-    if IsDSWGroup(S) then return true; fi;
+# ONLY DEALS WITH INDECOMPOSABLE CASES
+BindGlobal("FS_ReducedFusionSystems_Class2", function(S)
+    local p, n;
 
+    Assert(0, PClassPGroup(S) = 2 or NilpotencyClassOfGroup(S) = 2);
+    
+    p := PrimePGroup(S);
+    n := PValuation(Size(S), p);
+    
+    # $\PSp_4(2^a)$ -> Syl-$2$ has order $2^{4a}$
+    # $\L_3(p^a)$ OR $\Alt(6)$ ($p=2$) -> Syl-$p$ has order $p^{3a}$
+    if IsOddInt(p) and n mod 3 <> 0 then 
+        return false;
+    elif p=2 and n mod 3 <> 0 and n mod 4 <> 0 then 
+        return false;
+    fi;
+    
+    # TODO: actually check whether these groups are valid
+    return true;
+end );
+
+BindGlobal("FS_PossiblySupportsReducedFusionSystems_PrePE", function(S)
     if not ExponentTest(S) then 
         Info(InfoFusion, 1, "Exponent of Z(S) too big");
         return false;
     fi;
 
-    # TODO: If $S'$ is cyclic, then when is $S$ fine (just maximal class?)
-    if not DerivedCyclicTest(S) then 
+    # If $S'$ is cyclic, then $S$ must have an abelian index p 
+    # TODO: Further check that that this sub proto-essential too
+    if not DerivedCyclicTest(S) and not IsDSWGroup(S) then 
         Info(InfoFusion, 1, "Derived subgroup is cyclic");
         return false;
     fi;
 
-    if not OmegaAbelianizationTest(S) then 
-        Info(InfoFusion, 1, "Failed omega test");
+    if not FS_OmegaAbelianizationTest1(S) then 
+        Info(InfoFusion, 1, "Failed omega test (1)");
         return false;
     fi;
 
@@ -277,12 +301,6 @@ end);
 InstallMethod(PossiblySupportsReducedFusionSystems_PE, "Possibly supports reduced fusion systems (PE version)",
     [IsPGroup, IsList], function(S, C)
     local p, L;
-
-    # TODO: Maximal class
-    # TODO: Class 2
-    # TODO: Abelian sub. of index p (non-maximal class)
-
-    if IsAbelian(S) then return false; fi;
     
     if not FS_PossiblySupportsReducedFusionSystems_PrePE(S) then 
         return false;
@@ -323,13 +341,26 @@ end );
 InstallMethod(PossiblySupportsReducedFusionSystems, "Possibly supports reduced fusion systems",
     [IsPGroup], function(S)
     local C0, C;
-
-    # TODO: Maximal class
-    # TODO: Class 2
-    # TODO: Abelian sub. of index p (non-maximal class)
     
-    if IsAbelian(S) then return false; fi;
-    if IsDSWGroup(S) then return true; fi;
+    # TODO: Maximal class
+    # TODO: Abelian sub. of index p (non-maximal class)
+
+    # TODO: Deal with p odd as well
+    if PrimePGroup(S) = 2 and IsDSWGroup(S) then 
+        Info(InfoFusion, 1, "S is DSW group");
+        return true; 
+    # elif (PClassPGroup(S) = 2 or NilpotencyClassOfGroup(S) = 2) then 
+    #     if FS_ReducedFusionSystems_Class2(S) then 
+    #         Info(InfoFusion, 1, "S is valid of class 2");
+    #         return true;
+    #     else 
+    #         Info(InfoFusion, 1, "S is invalid of class 2");
+    #         return false;
+    #     fi;
+    elif IsAbelian(S) then 
+        Info(InfoFusion, 1, "S is abelian");
+        return false; 
+    fi;
 
     if not FS_PossiblySupportsReducedFusionSystems_PrePE(S) then 
         return false;
@@ -337,6 +368,11 @@ InstallMethod(PossiblySupportsReducedFusionSystems, "Possibly supports reduced f
 
     C0 := MainProtoEssentials(S, 0);
     if not C0Test(S, C0) then 
+        Info(InfoFusion, 1, "Failed C0 test");
+        return false;
+    fi;
+
+    if not FS_OmegaAbelianizationTest2(S) then 
         Info(InfoFusion, 1, "Failed C0 test");
         return false;
     fi;
