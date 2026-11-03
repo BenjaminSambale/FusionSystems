@@ -290,7 +290,9 @@ InstallMethod(ValidAutTest, "PE Valid Aut Test",
         if i=1 then 
             r := p^n;
             # PSL(2,r)
-            if a mod (r*(r-1)*(r+1)) = 0 then 
+            if p = 2 and a mod (r^3 - r) = 0 then
+                return true;
+            elif IsOddInt(p) and 2*a mod (r^3 - r) = 0 then 
                 return true;
             # Alt(2p)
             elif n=2 and p>=5 and 2*a mod Factorial(2*p) = 0 then 
@@ -423,12 +425,13 @@ end);
 
 InstallMethod(IsProtoEssential, "PE check", 
     [IsPGroup, IsPGroup], function(S, E)
-    if S = E or not IsSubset(E, Centralizer(S,E)) then 
+    if S = E then  
+        Info(InfoFusion, 2, "\tE = S");
+        return false;
+    elif S = E or not IsSubset(E, Centralizer(S,E)) then 
         Info(InfoFusion, 2, "\tFailed centric test");
         return false;
-    fi;
-
-    if not Zed0Test(S, E) then 
+    elif not Zed0Test(S, E) then 
         Info(InfoFusion, 2, "\tFailed Z0 test");
         return false;
     fi;
