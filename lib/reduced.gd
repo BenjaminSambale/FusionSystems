@@ -142,10 +142,8 @@ DeclareAttribute("ExponentTest", IsPGroup);
 
 #! @Description 
 #! 
-#! Let $S$ be a $2$-group. The attribute `AbelianTest` first asserts whether there exists an abelian subgroup $A$ of $S$ satisfying $[N_S(A) : A] = 2$ and: 
-#! * $N_S(A) = S$; or
-#! * $N_S(A) &lt; S$, with $\mathrm{Aut}_S(A) \nleq O_2(\mathrm{Aut})(A)$.
-#! If so, the function returns true only if $S$ is a $\mathcal{DSW}$-group.
+#! Let $S$ be a $2$-group. The attribute `AbelianTest` first asserts whether there exists an elementary abelian subgroup $A$ 
+#! of $S$ satisfying $[N_S(A) : A] = 2$. If so, the function returns true only if $S$ is a $\mathcal{DSW}$-group.
 #! 
 #! This test only applies at $p=2$. It is based on <Cite Key="AOV13" Where="Proposition 5.2(a), (c)" />.
 #! 
