@@ -10,7 +10,7 @@
 #
 gap> START_TEST("fusionsystems05.tst");
 
-# doc/_Chapter_EnumerationSaturated.xml:126-136
+# doc/_Chapter_EnumerationSaturated.xml:132-142
 gap> S := SmallGroup(27, 3);;
 gap> Length(AllSaturatedFusionSystems(S));
 15

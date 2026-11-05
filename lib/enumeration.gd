@@ -7,6 +7,8 @@
 #! hold for every saturated fusion system (not only for reduced ones). Tests which depend on the classification of finite simple groups
 #! are marked as such in Section <Ref Sect="Section_PotentiallyEssential"/>.
 
+DeclareOperation("HasStronglyPEmbeddedSubgroup", [IsGroup, IsPGroup]);
+
 #! @Section The algorithm
 
 #! * The $S$-conjugacy classes of $S$-centric subgroups are split into $\textrm{Aut}(S)$-orbits. For one subgroup $E$ in each orbit, the tests of
@@ -58,7 +60,7 @@
 #!   $E/\Phi(E)$. Hence $|N|^2 \leq |E/\Phi(E)|$ and $N$ has one of the types of <Cite Key="SAM14" Where="Theorem 6.9"/> (see also
 #!   <Cite Key="PS_MAGMA" Where="Corollary 4.6, Lemma 4.7, Proposition 4.8(3),(4)"/>). For $p = 2$, this rests on Bender's classification of groups
 #!   with a strongly embedded subgroup and Higman's classification of Suzuki $2$-groups;
-#!   **for odd $p$, it depends on the classification of finite simple groups**. This test replaces <Ref Oper="RankTest" Label="for IsPGroup, IsPGroup"/>.
+#!   **for odd $p$, it depends on the classification of finite simple groups**. This test replaces <Ref Func="SPESylowType" />.
 #! * $\textrm{Aut}_S(E) \cap O_p(\textrm{Aut}(E)) = \textrm{Inn}(E)$ <Cite Key="PS_MAGMA" Where="Proposition 4.8(2)"/>. This is
 #!   <Ref Oper="RadicalTest" Label="for IsPGroup, IsPGroup"/>.
 #! * If $\textrm{Out}_S(E)$ contains an elementary abelian subgroup of order $p^2$, then $\textrm{Out}(E)$ and the candidates for

@@ -1,19 +1,79 @@
 # Enumeration of all saturated fusion systems on a p-group.
 
-# Y has a strongly p-embedded subgroup, where P is a Sylow p-subgroup of Y with P <> 1:
-# by [AKO, Proposition A.7] and Alperin's fusion theorem, this holds iff <N_Y(Q) | 1 <> Q <= P> < Y.
-BindGlobal("FS_HasStronglyPEmbeddedSubgroup", function(Y, P)
-    local M, Q;
-    M := Normalizer(Y, P);
-    for Q in List(ConjugacyClassesSubgroups(P), Representative) do
-        if Size(Q) > 1 then
-            M := ClosureGroup(M, Normalizer(Y, Q));
-            if Size(M) = Size(Y) then
-                return false;
+# based on [PS_MAGMA, Lemma 4.5]. Depends on the classification of finite simple groups
+InstallMethod(HasStronglyPEmbeddedSubgroup, "for a p-group and a subgroup",
+    [IsGroup, IsPGroup], function(G, S)    
+	local p, i, K, M, d, n, q;
+    
+    if IsTrivial(S) then
+        return false; 
+    fi;
+    p := PrimePGroup(S);
+
+    if not IsTrivial(PCore(G, p)) then
+        return false;
+    fi;
+
+    i := SPESylowType(S);
+
+	if i = 0 then
+		return true;
+    # G cannot be soluble in the p-rank >1 case.
+	elif IsSolvableGroup(G) then
+		return false;
+    fi;
+
+	# We are now in the p-rank >1 case.
+    K := CoprimeResidual(G, [p]);
+    M := K/SylowComplement(FittingSubgroup(K), p);
+    
+    #If G has Spe sbgp, then M lies on a list of almost simple groups.
+    if not IsSimpleGroup(M) then		#Only 2 possibilities that are almost simple but not simple.
+        # PSL_2(8):C_3
+        if p = 3 and Size(M) = 1512 and IsAlmostSimpleGroup(M) then
+            return ForAny( MaximalSubgroupClassReps(M), H -> IdGroup(H)=IdGroup(PSL(2,8)) );
+        # Sz(32):C_5
+        elif p = 5 and Size(M) = 162688000 then	
+            return true;
+        fi;
+    else	
+        d := IsomorphismTypeInfoFiniteSimpleGroup(M);
+
+        if d.series = "Spor" then
+            return (d.name = "M(11)" and p = 3) or (d.name in ["Fi(22)", "Mc"] and p = 5) or (d.name = "J4" and p = 11);
+        # Classical gps of Lie type
+        elif IsList(d.parameter) then		
+            n:=d.parameter[1];
+            q:=d.parameter[2];
+            if SmallestRootInt(q) = p then
+                return 
+                    (n = 2 and d.series = "L" and q <> p) or # L_2(q)
+                    (n = 3-1 and q <> 2 and d.series = "2A"); # U_3(q)
+            else
+                return (n = 3 and q = 4 and p = 3 and d.series = "L"); # L_3(4)
+            fi;
+        # Alternating groups and exceptional groups of Lie type
+        else	
+            q := d.parameter;
+            if d.series = "A" and (
+                q = 2*p or # Alt(2p)
+                (q = 5 and p = 2) or # A_5 \cong L_2(4) 
+                (q = 6 and p = 3)) then # A_6 \cong L_2(9)
+                return true;
+            # Sz(2^{2n+1})
+            elif d.series = "2B" and p = 2 then
+                return true;
+            # 2G_2(3^{2n+1})
+            elif d.series = "2G" and p = 3 then
+                return true;
+            # 2F_4(2)'
+            elif d.series = "2F" and p = 3 and q = 2 then
+                return true;
             fi;
         fi;
-    od;
-    return Size(M) < Size(Y);
+    fi;
+
+    return false;
 end);
 
 # lists of automorphisms of S generating a complement C to Inn(S) in Aut_F(S), for the p'-subgroups C
@@ -268,7 +328,7 @@ BindGlobal("FS_EssentialData", function(S, E)
         return fail;
     fi;
     Y0s := Filtered(OvergroupsWithSylowSubgroup(OutE, OutSE), Y0 -> Size(PCore(Y0, p)) = 1 and
-                    not (rank2 and IsSolvableGroup(Y0)) and FS_HasStronglyPEmbeddedSubgroup(Y0, OutSE));
+                    not (rank2 and IsSolvableGroup(Y0)) and HasStronglyPEmbeddedSubgroup(Y0, OutSE));
     if Y0s = [] then
         return fail;
     fi;
